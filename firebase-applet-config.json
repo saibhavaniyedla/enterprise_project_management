@@ -1,7 +1,7 @@
 {
   "projectId": "customer-chatgpt-qrig",
   "appId": "1:444395321084:web:ccb2be61e9b6d94f804979",
-  "apiKey": "AIzaSyCuPKIPMi0fc-rAXVWwTUYMRUntt83DjdU",
+  "apiKey": "YOUR API KEY",
   "authDomain": "customer-chatgpt-qrig.firebaseapp.com",
   "storageBucket": "customer-chatgpt-qrig.firebasestorage.app",
   "messagingSenderId": "444395321084",
