@@ -12,6 +12,7 @@ import {
   orderBy,
   limit,
   serverTimestamp,
+  arrayUnion,
   Unsubscribe,
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
@@ -26,6 +27,14 @@ import {
   Workspace,
   MilestoneEvent,
 } from '../types';
+
+const asIsoDate = (value: unknown, fallback = ''): string => {
+  if (typeof value === 'string') return value;
+  if (value && typeof (value as { toDate?: () => Date }).toDate === 'function') {
+    return (value as { toDate: () => Date }).toDate().toISOString().slice(0, 10);
+  }
+  return fallback;
+};
 
 export enum OperationType {
   CREATE = 'create',
@@ -106,35 +115,24 @@ export function subscribeWorkspaces(
   onUpdate: (workspaces: Workspace[]) => void,
   onError?: (err: Error) => void
 ): Unsubscribe {
-  const workspacesRef = collection(db, 'workspaces');
-  return onSnapshot(
-    workspacesRef,
-    (snapshot) => {
-      const workspaces: Workspace[] = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        const memberIds = data.memberIds || [];
-        // Match either member or creator or public workspace
-        if (
-          !userId ||
-          data.ownerId === userId ||
-          memberIds.includes(userId) ||
-          data.isPublic
-        ) {
-          workspaces.push({
-            id: docSnap.id,
-            name: data.name || 'Untitled Workspace',
-            description: data.description || '',
-          });
-        }
-      });
-      onUpdate(workspaces);
-    },
-    (err) => {
-      console.warn('Warning subscribing to workspaces:', err);
-      onError?.(err);
-    }
-  );
+  if (!userId) { onUpdate([]); return () => {}; }
+  // Firestore cannot OR these predicates, so merge two scoped listeners. This never
+  // subscribes to unrelated workspaces in the client.
+  const results = new Map<string, Workspace>();
+  const emit = () => onUpdate([...results.values()].sort((a, b) => a.name.localeCompare(b.name)));
+  const listen = (source: ReturnType<typeof query>) => onSnapshot(source, (snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      if (change.type === 'removed') results.delete(change.doc.id);
+      else {
+        const data = change.doc.data();
+        results.set(change.doc.id, { id: change.doc.id, name: data.name || 'Untitled Workspace', description: data.description || '' });
+      }
+    });
+    emit();
+  }, (err) => { console.warn('Workspace subscription failed:', err); onError?.(err); });
+  const stopOwner = listen(query(collection(db, 'workspaces'), where('ownerId', '==', userId)));
+  const stopMember = listen(query(collection(db, 'workspaces'), where('memberIds', 'array-contains', userId)));
+  return () => { stopOwner(); stopMember(); };
 }
 
 /**
@@ -164,7 +162,7 @@ export function subscribeProjects(
           workspaceId: workspaceId,
           color: d.color || '#6366f1',
           ownerId: d.ownerId || '',
-          dueDate: d.dueDate,
+          dueDate: asIsoDate(d.dueDate),
           status: d.status || 'In Progress',
           progress: typeof d.progress === 'number' ? d.progress : 0,
           readme: d.readme || '',
@@ -210,14 +208,14 @@ export function subscribeTasks(
           assigneeId: d.assigneeId || '',
           projectId: projectId,
           sprintId: d.sprintId || '',
-          startDate: d.startDate || '',
-          dueDate: d.dueDate || '',
+          startDate: asIsoDate(d.startDate),
+          dueDate: asIsoDate(d.dueDate),
           tags: Array.isArray(d.tags) ? d.tags : [],
           subtasks: Array.isArray(d.subtasks) ? d.subtasks : [],
           comments: Array.isArray(d.comments) ? d.comments : [],
           is_completed: typeof d.is_completed === 'boolean' ? d.is_completed : d.status === 'done',
-          createdAt: d.createdAt ? (typeof d.createdAt === 'string' ? d.createdAt : new Date(d.createdAt.seconds * 1000).toISOString().split('T')[0]) : '',
-          updatedAt: d.updatedAt ? (typeof d.updatedAt === 'string' ? d.updatedAt : new Date(d.updatedAt.seconds * 1000).toISOString().split('T')[0]) : '',
+          createdAt: asIsoDate(d.createdAt),
+          updatedAt: asIsoDate(d.updatedAt),
         });
       });
       onUpdate(tasks);
@@ -227,6 +225,25 @@ export function subscribeTasks(
       onError?.(err);
     }
   );
+}
+
+/** Subscribe to a task's comment subcollection. Kept separate from task documents
+ * so comments authored in another tab arrive without racing a read/modify/write. */
+export function subscribeComments(
+  workspaceId: string,
+  projectId: string,
+  taskId: string,
+  onUpdate: (comments: Task['comments']) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  if (!workspaceId || !projectId || !taskId) { onUpdate([]); return () => {}; }
+  return onSnapshot(collection(db, 'workspaces', workspaceId, 'projects', projectId, 'tasks', taskId, 'comments'), (snapshot) => {
+    const comments = snapshot.docs.map((snap) => {
+      const d = snap.data();
+      return { id: snap.id, authorId: d.authorId || '', authorName: d.authorName || 'Team member', authorAvatar: d.authorAvatar || '', text: d.text || '', createdAt: asIsoDate(d.createdAt, d.createdAtLabel || 'Just now') };
+    }).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    onUpdate(comments);
+  }, (err) => { console.warn('Comment subscription failed:', err); onError?.(err); });
 }
 
 /**
@@ -254,8 +271,8 @@ export function subscribeSprints(
           name: d.name || 'Sprint',
           projectId: projectId,
           status: d.status || 'active',
-          startDate: d.startDate || '',
-          endDate: d.endDate || '',
+          startDate: asIsoDate(d.startDate),
+          endDate: asIsoDate(d.endDate),
           goal: d.goal || '',
         });
       });
@@ -436,8 +453,9 @@ export async function createWorkspaceInDb(
     ...newWorkspace,
     ownerId,
     memberIds: [ownerId],
-    createdAt: serverTimestamp(),
-  });
+    createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  }, { merge: true });
+  await setDoc(doc(db, 'users', ownerId), { workspaceIds: arrayUnion(workspaceId), workspaceId, updatedAt: serverTimestamp() }, { merge: true });
 
   return newWorkspace;
 }
@@ -472,8 +490,8 @@ ${projectData.description || 'Sprint deliverables and milestone tracking.'}
 
   await setDoc(doc(db, 'workspaces', workspaceId, 'projects', projectId), {
     ...newProject,
-    createdAt: serverTimestamp(),
-  });
+    createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  }, { merge: true });
 
   return newProject;
 }
@@ -487,10 +505,10 @@ export async function updateProjectInDb(
   updates: Partial<Project>
 ): Promise<void> {
   const projRef = doc(db, 'workspaces', workspaceId, 'projects', projectId);
-  await updateDoc(projRef, {
+  await setDoc(projRef, {
     ...updates,
     updatedAt: serverTimestamp(),
-  });
+  }, { merge: true });
 }
 
 /**
@@ -530,7 +548,8 @@ export async function createTaskInDb(
   await setDoc(doc(db, 'workspaces', workspaceId, 'projects', projectId, 'tasks', taskId), {
     ...newTask,
     createdAt: serverTimestamp(),
-  });
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
 
   // Log activity
   const actId = `act-${Date.now()}`;
@@ -563,10 +582,10 @@ export async function updateTaskInDb(
   const taskRef = doc(db, 'workspaces', workspaceId, 'projects', projectId, 'tasks', taskId);
   const todayStr = new Date().toISOString().split('T')[0];
 
-  await updateDoc(taskRef, {
+  await setDoc(taskRef, {
     ...updates,
-    updatedAt: todayStr,
-  });
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
 
   // Check if significant action should be logged
   let actionText: string | null = null;
@@ -639,7 +658,6 @@ export async function addCommentInDb(
   const taskRef = doc(db, 'workspaces', workspaceId, 'projects', projectId, 'tasks', taskId);
   const taskSnap = await getDoc(taskRef);
   if (!taskSnap.exists()) return;
-
   const taskData = taskSnap.data() as Task;
   const newComment = {
     id: `com-${Date.now()}`,
@@ -647,11 +665,10 @@ export async function addCommentInDb(
     authorName: author.name,
     authorAvatar: author.avatar,
     text: text.trim(),
-    createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    createdAt: new Date().toISOString(),
   };
-
-  const updatedComments = [...(taskData.comments || []), newComment];
-  await updateDoc(taskRef, { comments: updatedComments });
+  await setDoc(doc(taskRef, 'comments', newComment.id), { ...newComment, createdAt: serverTimestamp(), createdAtLabel: newComment.createdAt }, { merge: true });
+  await setDoc(taskRef, { updatedAt: serverTimestamp() }, { merge: true });
 
   const actId = `act-${Date.now()}`;
   await setDoc(doc(db, 'workspaces', workspaceId, 'activity', actId), {
@@ -689,7 +706,8 @@ export async function createSprintInDb(
   await setDoc(doc(db, 'workspaces', workspaceId, 'projects', projectId, 'sprints', sprintId), {
     ...newSprint,
     createdAt: serverTimestamp(),
-  });
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
 
   return newSprint;
 }
@@ -704,10 +722,10 @@ export async function updateSprintInDb(
   updates: Partial<Sprint>
 ): Promise<void> {
   const sprintRef = doc(db, 'workspaces', workspaceId, 'projects', projectId, 'sprints', sprintId);
-  await updateDoc(sprintRef, {
+  await setDoc(sprintRef, {
     ...updates,
     updatedAt: serverTimestamp(),
-  });
+  }, { merge: true });
 }
 
 /* =========================================================================

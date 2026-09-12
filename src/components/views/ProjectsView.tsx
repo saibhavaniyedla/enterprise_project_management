@@ -73,30 +73,12 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<ProjectsMainSubTab>('overview');
   const [tasksSubView, setTasksSubView] = useState<TasksSubView>('board');
 
-  const fallbackProject: Project = {
-    id: 'default-project',
-    workspaceId: 'default-workspace',
-    name: 'Active Project',
-    key: 'PRJ',
-    description: 'Project deliverables and sprint tracking.',
-    status: 'active',
-    progress: 0,
-    created_at: new Date().toISOString(),
-  };
+  const activeProject = currentProject || projects[0] || null;
+  const activeSprint = currentSprint || sprints[0] || null;
 
-  const activeProject = currentProject || projects[0] || fallbackProject;
-
-  const fallbackSprint: Sprint = {
-    id: 'default-sprint',
-    name: 'Sprint 1',
-    projectId: activeProject.id,
-    status: 'active',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
-    goal: 'Sprint deliverables & milestones',
-  };
-
-  const activeSprint = currentSprint || sprints[0] || fallbackSprint;
+  if (!activeProject) {
+    return <div className="flex-1 grid place-items-center bg-[#090b10] p-8 text-center"><div><h2 className="text-xl font-bold text-white">No projects yet</h2><p className="mt-2 text-slate-400">Create a project from the workspace dashboard to start planning live work.</p></div></div>;
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-[#090b10] text-slate-100">

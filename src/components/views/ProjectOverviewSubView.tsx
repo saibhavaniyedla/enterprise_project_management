@@ -45,20 +45,6 @@ export const ProjectOverviewSubView: React.FC<ProjectOverviewSubViewProps> = ({
   onOpenNewTask,
   onOpenAIInsights,
 }) => {
-  const fallbackProject: Project = useMemo(
-    () => ({
-      id: 'default-project',
-      workspaceId: 'default-workspace',
-      name: 'Active Project',
-      key: 'PRJ',
-      description: 'Project deliverables and sprint tracking.',
-      status: 'active' as const,
-      progress: 0,
-      created_at: new Date().toISOString(),
-    }),
-    []
-  );
-
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
     currentProject?.id || projects[0]?.id || ''
   );
@@ -79,16 +65,15 @@ export const ProjectOverviewSubView: React.FC<ProjectOverviewSubViewProps> = ({
     return (
       projects.find((p) => p.id === selectedProjectId) ||
       currentProject ||
-      projects[0] ||
-      fallbackProject
+      projects[0] || null
     );
-  }, [projects, selectedProjectId, currentProject, fallbackProject]);
+  }, [projects, selectedProjectId, currentProject]);
 
   // Load stats & activities for selected project
   useEffect(() => {
     let isMounted = true;
     async function loadStats() {
-      if (!inspectedProject?.id || inspectedProject.id === 'default-project' || !inspectedProject.workspaceId) {
+      if (!inspectedProject?.id || !inspectedProject.workspaceId) {
         setLoading(false);
         return;
       }
@@ -128,9 +113,9 @@ export const ProjectOverviewSubView: React.FC<ProjectOverviewSubViewProps> = ({
     stats?.completed_task_count ??
     projectTasks.filter((t) => t.is_completed || t.status === 'done').length;
   const overdueCount = stats?.overdue_task_count ?? 0;
-  const healthScore = stats?.health_score ?? 85;
+  const healthScore = stats?.health_score ?? (totalCount ? Math.round((completedCount / totalCount) * 100) : 0);
   const riskLevel = stats?.risk_level ?? 'Low';
-  const riskReason = stats?.risk_reason ?? 'Deliverables tracking on schedule';
+  const riskReason = stats?.risk_reason ?? (totalCount ? 'Calculated from live task completion.' : 'No live tasks to assess yet.');
 
   // Overall progress percentage
   const progressPercent =

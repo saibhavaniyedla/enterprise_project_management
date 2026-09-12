@@ -1,197 +1,28 @@
-import React, { useMemo } from 'react';
-import { Calendar, Clock, AlertCircle, User, ArrowRight } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Task, Sprint, TeamMember } from '../../types';
 
-interface TimelineViewProps {
-  tasks: Task[];
-  sprint?: Sprint | null;
-  members: TeamMember[];
-  onSelectTask: (task: Task) => void;
-}
+interface TimelineViewProps { tasks: Task[]; sprint?: Sprint | null; members: TeamMember[]; onSelectTask: (task: Task) => void; }
+const DAY = 86_400_000;
+const day = (value?: string) => { const parsed = value ? new Date(`${value.slice(0, 10)}T00:00:00`) : null; return parsed && !Number.isNaN(parsed.getTime()) ? parsed : null; };
+const iso = (value: Date) => value.toISOString().slice(0, 10);
 
-export const TimelineView: React.FC<TimelineViewProps> = ({
-  tasks,
-  sprint,
-  members,
-  onSelectTask,
-}) => {
-  const effectiveStartDate = useMemo(() => {
-    if (sprint?.startDate) return sprint.startDate;
-    return new Date().toISOString().split('T')[0];
-  }, [sprint?.startDate]);
-
-  // Generate date range headers for the sprint timeline (14 days)
-  const dateColumns = useMemo(() => {
-    const dates: string[] = [];
-    const start = new Date(effectiveStartDate);
-    const validStart = isNaN(start.getTime()) ? new Date() : start;
-    for (let i = 0; i < 14; i++) {
-      const d = new Date(validStart);
-      d.setDate(validStart.getDate() + i);
-      dates.push(d.toISOString().split('T')[0]);
-    }
-    return dates;
-  }, [effectiveStartDate]);
-
-  const priorityColors = {
-    Urgent: 'bg-rose-500 border-rose-600',
-    High: 'bg-amber-500 border-amber-600',
-    Medium: 'bg-blue-500 border-blue-600',
-    Low: 'bg-slate-400 border-slate-500',
-  };
-
-  const calculateBarPosition = (startDate?: string, dueDate?: string) => {
-    const sprintStartDateObj = new Date(effectiveStartDate);
-    const sprintStart = isNaN(sprintStartDateObj.getTime())
-      ? Date.now()
-      : sprintStartDateObj.getTime();
-
-    const rawStart = startDate ? new Date(startDate).getTime() : sprintStart;
-    const validStart = isNaN(rawStart) ? sprintStart : rawStart;
-
-    const rawEnd = dueDate ? new Date(dueDate).getTime() : validStart + 86400000;
-    const validEnd = isNaN(rawEnd) ? validStart + 86400000 : rawEnd;
-
-    const start = Math.max(validStart, sprintStart);
-    const end = Math.max(validEnd, start);
-    const dayMs = 86400000;
-
-    const startDayIndex = Math.max(0, Math.floor((start - sprintStart) / dayMs));
-    const durationDays = Math.max(1, Math.ceil((end - start) / dayMs) + 1);
-
-    const leftPct = Math.min(94, (startDayIndex / 14) * 100);
-    const widthPct = Math.min(100 - leftPct, (durationDays / 14) * 100);
-
-    return { left: `${leftPct}%`, width: `${Math.max(6, widthPct)}%` };
-  };
-
-  return (
-    <div className="flex-1 overflow-auto p-4 lg:p-6 bg-slate-50/70 min-h-[calc(100vh-112px)]">
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden min-w-[1000px]">
-        {/* Timeline Header Bar */}
-        <div className="flex border-b border-slate-200 bg-slate-50/80">
-          {/* Left Column: Task & Assignee info */}
-          <div className="w-72 shrink-0 p-4 font-bold text-xs uppercase tracking-wider text-slate-500 border-r border-slate-200">
-            Task / Assignee ({tasks.length})
-          </div>
-
-          {/* Right Column: Day Headers */}
-          <div className="flex-1 grid grid-cols-14 text-center">
-            {dateColumns.map((dateStr, idx) => {
-              const d = new Date(dateStr);
-              const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-              const dayNum = d.getDate();
-              const isToday = dateStr === new Date().toISOString().split('T')[0];
-
-              return (
-                <div
-                  key={idx}
-                  className={`py-2 px-1 border-r border-slate-100 last:border-r-0 flex flex-col items-center justify-center ${
-                    isToday ? 'bg-blue-50/80 text-blue-800 font-bold' : 'text-slate-600'
-                  }`}
-                >
-                  <span className="text-[10px] uppercase font-semibold text-slate-400">
-                    {dayName}
-                  </span>
-                  <span
-                    className={`text-xs mt-0.5 ${
-                      isToday
-                        ? 'w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center'
-                        : ''
-                    }`}
-                  >
-                    {dayNum}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Timeline Row Items */}
-        <div className="divide-y divide-slate-100">
-          {tasks.map((task) => {
-            const assignee = members.find((m) => m.id === task.assigneeId);
-            const { left, width } = calculateBarPosition(task.startDate, task.dueDate);
-
-            return (
-              <div
-                key={task.id}
-                className="flex items-center hover:bg-slate-50/80 transition group"
-              >
-                {/* Left Pane: Task Details */}
-                <div
-                  onClick={() => onSelectTask(task)}
-                  className="w-72 shrink-0 p-3 border-r border-slate-200 flex items-center justify-between gap-2 cursor-pointer"
-                >
-                  <div className="flex items-center gap-2.5 truncate">
-                    {assignee ? (
-                      <img
-                        src={assignee.avatar}
-                        alt={assignee.name}
-                        className="w-7 h-7 rounded-full object-cover shrink-0 border border-slate-200"
-                        title={assignee.name}
-                      />
-                    ) : (
-                      <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500">
-                        ?
-                      </div>
-                    )}
-                    <div className="truncate">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-bold font-mono text-slate-500">
-                          {task.key}
-                        </span>
-                        <span
-                          className={`text-[10px] px-1.5 py-0.2 rounded-xs font-semibold ${
-                            task.status === 'done'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : task.status === 'in-progress'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}
-                        >
-                          {task.status}
-                        </span>
-                      </div>
-                      <div className="text-xs font-semibold text-slate-800 truncate group-hover:text-blue-600 transition">
-                        {task.title}
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold text-slate-400 shrink-0">
-                    {task.storyPoints}p
-                  </span>
-                </div>
-
-                {/* Right Pane: Gantt Bar Track */}
-                <div className="flex-1 relative h-12 flex items-center px-1">
-                  {/* Subtle Grid vertical lines */}
-                  <div className="absolute inset-0 grid grid-cols-14 pointer-events-none">
-                    {dateColumns.map((_, i) => (
-                      <div key={i} className="border-r border-slate-100/60 last:border-r-0" />
-                    ))}
-                  </div>
-
-                  {/* Task Bar */}
-                  <div
-                    onClick={() => onSelectTask(task)}
-                    className={`absolute h-7 rounded-lg border text-white text-xs font-semibold px-2.5 flex items-center justify-between shadow-xs cursor-pointer hover:brightness-110 transition z-10 truncate ${
-                      priorityColors[task.priority] || priorityColors.Medium
-                    }`}
-                    style={{ left, width }}
-                  >
-                    <span className="truncate">{task.title}</span>
-                    <span className="text-[10px] opacity-90 font-mono ml-1 shrink-0">
-                      {task.storyPoints}p
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
+export const TimelineView: React.FC<TimelineViewProps> = ({ tasks, sprint, members, onSelectTask }) => {
+  const [offset, setOffset] = useState(0);
+  const range = useMemo(() => {
+    const dated = tasks.flatMap(t => [day(t.startDate), day(t.dueDate)]).filter(Boolean) as Date[];
+    const anchor = day(sprint?.startDate) || dated.sort((a, b) => a.getTime() - b.getTime())[0] || new Date();
+    const end = day(sprint?.endDate) || dated.sort((a, b) => b.getTime() - a.getTime())[0] || new Date(anchor.getTime() + 13 * DAY);
+    const span = Math.max(14, Math.ceil((end.getTime() - anchor.getTime()) / DAY) + 1);
+    const start = new Date(anchor.getTime() + offset * DAY);
+    return { start, columns: Array.from({ length: Math.min(31, span) }, (_, i) => new Date(start.getTime() + i * DAY)) };
+  }, [tasks, sprint?.startDate, sprint?.endDate, offset]);
+  const colors: Record<string, string> = { Urgent: 'bg-rose-500', High: 'bg-amber-500', Medium: 'bg-blue-500', Low: 'bg-slate-400' };
+  const position = (task: Task) => { const start = day(task.startDate) || range.start; const end = day(task.dueDate) || start; const left = Math.max(0, Math.floor((start.getTime() - range.start.getTime()) / DAY)); const last = Math.max(left, Math.floor((end.getTime() - range.start.getTime()) / DAY)); return { left: `${(left / range.columns.length) * 100}%`, width: `${Math.max(100 / range.columns.length, ((last - left + 1) / range.columns.length) * 100)}%` }; };
+  if (!tasks.length) return <div className="p-8 text-center text-slate-400">No scheduled tasks yet. Create a task with dates to see it on the timeline.</div>;
+  return <div className="flex-1 overflow-auto p-4 lg:p-6 bg-slate-50/70">
+    <div className="flex items-center justify-between mb-3"><div><h2 className="font-bold text-slate-800">{sprint?.name || 'Project timeline'}</h2><p className="text-xs text-slate-500">Live task dates · scroll one day or a month at a time</p></div><div className="flex gap-2"><button className="px-2 py-1 border rounded" onClick={() => setOffset(o => o - 30)}><ChevronLeft className="w-4 h-4" /></button><button className="px-2 py-1 border rounded text-xs" onClick={() => setOffset(0)}>Today / sprint</button><button className="px-2 py-1 border rounded" onClick={() => setOffset(o => o + 30)}><ChevronRight className="w-4 h-4" /></button></div></div>
+    <div className="bg-white border rounded-xl min-w-[1050px] overflow-hidden"><div className="flex border-b"><div className="w-72 p-3 text-xs font-bold text-slate-500">TASK / ASSIGNEE</div><div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${range.columns.length}, minmax(36px, 1fr))` }}>{range.columns.map(d => <div key={iso(d)} className="text-center py-2 border-l text-[10px] text-slate-500"><div>{d.toLocaleDateString('en-US', { month: 'short' })}</div><b>{d.getDate()}</b></div>)}</div></div>
+      {tasks.map(task => { const assignee = members.find(m => m.id === task.assigneeId); const bar = position(task); return <div key={task.id} className="flex border-b last:border-0"><button onClick={() => onSelectTask(task)} className="w-72 p-3 text-left truncate"><div className="text-xs font-bold text-slate-700">{task.key || 'TASK'} · {task.title || 'Untitled task'}</div><div className="text-[11px] text-slate-400">{assignee?.name || 'Unassigned'} · {task.startDate || 'No start date'} — {task.dueDate || 'No due date'}</div></button><div className="flex-1 relative h-14" style={{ backgroundImage: 'linear-gradient(to right, #f1f5f9 1px, transparent 1px)', backgroundSize: `${100 / range.columns.length}% 100%` }}><button onClick={() => onSelectTask(task)} title={task.title} className={`absolute top-3 h-7 rounded px-2 text-left text-xs text-white truncate ${colors[task.priority] || colors.Medium}`} style={bar}>{task.title || 'Untitled task'}</button></div></div>; })}</div>
+  </div>;
 };
