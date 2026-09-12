@@ -1,0 +1,11 @@
+{
+  "name": "Remix Remix enterprise-project-management-saas",
+  "description": "Imported from GitHub: FusionSprint/enterprise-project-management-saas",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

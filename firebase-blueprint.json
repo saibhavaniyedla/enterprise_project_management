@@ -1,0 +1,185 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User account profile and workspace memberships",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "companyName": { "type": "string" },
+        "role": { "type": "string" },
+        "avatar": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "workspaceIds": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "email"]
+    },
+    "Workspace": {
+      "title": "Workspace",
+      "description": "Top-level workspace tenant",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "memberIds": { "type": "array" }
+      },
+      "required": ["id", "name"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Project within a workspace",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "key": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "color": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "status": { "type": "string" },
+        "progress": { "type": "number" },
+        "readme": { "type": "string" }
+      },
+      "required": ["id", "name", "workspaceId"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Sprint or backlog work item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "key": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string" },
+        "priority": { "type": "string" },
+        "storyPoints": { "type": "number" },
+        "assigneeId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "sprintId": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "tags": { "type": "array" },
+        "subtasks": { "type": "array" },
+        "comments": { "type": "array" },
+        "is_completed": { "type": "boolean" }
+      },
+      "required": ["id", "title", "status", "projectId"]
+    },
+    "Sprint": {
+      "title": "Sprint",
+      "description": "Sprint cycle within a project",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "projectId": { "type": "string" },
+        "status": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "goal": { "type": "string" }
+      },
+      "required": ["id", "name", "projectId", "status"]
+    },
+    "TeamMember": {
+      "title": "TeamMember",
+      "description": "Member roster in a workspace",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "avatar": { "type": "string" },
+        "capacityHours": { "type": "number" },
+        "assignedPoints": { "type": "number" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Audit trail log for workspace operations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "taskId": { "type": "string" },
+        "taskKey": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "action": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "action"]
+    },
+    "Presence": {
+      "title": "Presence",
+      "description": "Real-time user heartbeat",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "lastSeen": { "type": "number" }
+      },
+      "required": ["userId", "lastSeen"]
+    },
+    "Feedback": {
+      "title": "Feedback",
+      "description": "User feedback submission",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "rating": { "type": "number" },
+        "category": { "type": "string" },
+        "message": { "type": "string" },
+        "submittedAt": { "type": "string" }
+      },
+      "required": ["message"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles and credentials"
+    },
+    "/workspaces/{workspaceId}": {
+      "schema": { "$ref": "#/entities/Workspace" },
+      "description": "Workspaces"
+    },
+    "/workspaces/{workspaceId}/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "Projects inside a workspace"
+    },
+    "/workspaces/{workspaceId}/projects/{projectId}/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Tasks inside a project"
+    },
+    "/workspaces/{workspaceId}/projects/{projectId}/sprints/{sprintId}": {
+      "schema": { "$ref": "#/entities/Sprint" },
+      "description": "Sprints inside a project"
+    },
+    "/workspaces/{workspaceId}/members/{memberId}": {
+      "schema": { "$ref": "#/entities/TeamMember" },
+      "description": "Members in a workspace"
+    },
+    "/workspaces/{workspaceId}/activity/{activityId}": {
+      "schema": { "$ref": "#/entities/ActivityLog" },
+      "description": "Audit trail activity in a workspace"
+    },
+    "/workspaces/{workspaceId}/presence/{presenceId}": {
+      "schema": { "$ref": "#/entities/Presence" },
+      "description": "Online presence pulses"
+    },
+    "/feedback/{feedbackId}": {
+      "schema": { "$ref": "#/entities/Feedback" },
+      "description": "User feedback documents"
+    }
+  }
+}

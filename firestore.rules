@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // User Profiles
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Workspaces and all subcollections (projects, tasks, sprints, members, activity, presence, etc.)
+    match /workspaces/{workspaceId} {
+      allow read, write: if true;
+
+      match /{allChildren=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // Feedback
+    match /feedback/{feedbackId} {
+      allow read, write: if true;
+    }
+
+    // Fallback for any other collection
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
+
