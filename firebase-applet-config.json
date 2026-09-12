@@ -1,12 +1,11 @@
 {
-  "projectId": "authentic-machine-ld2jw",
-  "appId": "1:139866653953:web:e89c9df207f449a0f8c700",
-  "apiKey": "AIzaSyBkqoD8N07DMMt6hqfaNbQeIJEu9hb9eQY",
-  "authDomain": "authentic-machine-ld2jw.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-remixremixenterp-5f07f2a5-a9bc-421a-8110-ddcf2054906d",
-  "storageBucket": "authentic-machine-ld2jw.firebasestorage.app",
-  "messagingSenderId": "139866653953",
+  "projectId": "customer-chatgpt-qrig",
+  "appId": "1:444395321084:web:ccb2be61e9b6d94f804979",
+  "apiKey": "AIzaSyCuPKIPMi0fc-rAXVWwTUYMRUntt83DjdU",
+  "authDomain": "customer-chatgpt-qrig.firebaseapp.com",
+  "storageBucket": "customer-chatgpt-qrig.firebasestorage.app",
+  "messagingSenderId": "444395321084",
   "measurementId": "",
-  "oAuthClientId": "139866653953-f0tuauaj86gtehgi5pfvrviq5qkrlv0h.apps.googleusercontent.com",
+  "oAuthClientId": "444395321084-frfncnlmq54vf425bbnf2k9hs3s01kde.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

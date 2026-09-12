@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Sidebar, MainTab } from './components/Sidebar';
 import { HeaderBar } from './components/HeaderBar';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Views
 import { DashboardView } from './components/views/DashboardView';
@@ -567,7 +568,8 @@ export function App() {
 
         {/* Dynamic Main View Switcher */}
         <main className="flex-1 flex flex-col overflow-y-auto">
-          {activeTab === 'dashboard' && (
+          <ErrorBoundary fallbackTitle="Workspace View Error">
+            {activeTab === 'dashboard' && (
             <DashboardView
               projects={projects}
               sprints={sprints}
@@ -702,6 +704,7 @@ export function App() {
               }}
             />
           )}
+          </ErrorBoundary>
 
           {/* Persistent Global Application Footer */}
           <Footer

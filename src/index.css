@@ -16,3 +16,16 @@
     background: #94a3b8;
   }
 }
+
+/* Ensure all input, textarea, and select elements in light modals display clear black/dark-slate text */
+.bg-white input:not([type="checkbox"]):not([type="radio"]),
+.bg-white textarea,
+.bg-white select {
+  color: #0f172a !important;
+  background-color: #ffffff;
+}
+
+.bg-white input::placeholder,
+.bg-white textarea::placeholder {
+  color: #64748b !important;
+}

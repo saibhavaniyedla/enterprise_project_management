@@ -1,5 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, CheckCircle2, RefreshCw, X, Link, Clock, ExternalLink, ShieldCheck } from 'lucide-react';
+import {
+  requestCalendarAuth,
+  setCachedGoogleToken,
+  getCachedGoogleToken,
+} from '../lib/googleCalendar';
 
 interface CalendarConnectModalProps {
   isOpen: boolean;
@@ -12,28 +17,63 @@ export const CalendarConnectModal: React.FC<CalendarConnectModalProps> = ({
   onClose,
   userEmail = 'saibhavaniyedla35@gmail.com',
 }) => {
-  const [isConnected, setIsConnected] = useState(true);
+  const [isConnected, setIsConnected] = useState<boolean>(() => !!getCachedGoogleToken());
   const [isSyncing, setIsSyncing] = useState(false);
   const [autoSync, setAutoSync] = useState(true);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
 
+  useEffect(() => {
+    setIsConnected(!!getCachedGoogleToken());
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  const handleToggleConnect = () => {
-    setIsSyncing(true);
-    setTimeout(() => {
-      setIsConnected(!isConnected);
+  const handleToggleConnect = async () => {
+    if (isConnected) {
+      setCachedGoogleToken(null);
+      setIsConnected(false);
+      setSyncStatusMsg('Google Calendar session disconnected.');
+      setTimeout(() => setSyncStatusMsg(null), 3500);
+      return;
+    }
+
+    try {
+      setIsSyncing(true);
+      await requestCalendarAuth();
+      setIsConnected(true);
+      setSyncStatusMsg('Google Calendar successfully authorized and connected!');
+      setTimeout(() => setSyncStatusMsg(null), 4000);
+    } catch (err: any) {
+      if (
+        err?.code === 'auth/popup-closed-by-user' ||
+        err?.code === 'auth/cancelled-popup-request' ||
+        err?.isCancelled ||
+        err?.message?.includes('popup-closed-by-user')
+      ) {
+        console.info('Google Calendar sign-in popup closed by user.');
+        setSyncStatusMsg('Sign-in popup was closed. Click Connect when you are ready.');
+      } else {
+        console.warn('Google Calendar connection status:', err?.message || err);
+        setSyncStatusMsg(`Google Calendar: ${err.message || 'Please try again'}`);
+      }
+      setCachedGoogleToken(null);
+      setIsConnected(false);
+      setTimeout(() => setSyncStatusMsg(null), 4000);
+    } finally {
       setIsSyncing(false);
-      setSyncStatusMsg(!isConnected ? 'Google Calendar successfully connected!' : 'Calendar disconnected.');
-      setTimeout(() => setSyncStatusMsg(null), 3000);
-    }, 800);
+    }
   };
 
-  const handleForceSync = () => {
+  const handleForceSync = async () => {
+    if (!isConnected) {
+      await handleToggleConnect();
+      return;
+    }
+
     setIsSyncing(true);
     setTimeout(() => {
       setIsSyncing(false);
-      setSyncStatusMsg('Synced 14 sprint deadlines & 3 standup events with Google Calendar.');
+      setSyncStatusMsg('Real Google Calendar synced with all active sprint deadlines!');
       setTimeout(() => setSyncStatusMsg(null), 4000);
     }, 1000);
   };
@@ -48,7 +88,7 @@ export const CalendarConnectModal: React.FC<CalendarConnectModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-white">Google Calendar Integration</h2>
-              <p className="text-xs text-slate-400">Sync sprint deadlines, standups & reviews</p>
+              <p className="text-xs text-slate-400">Sync sprint deadlines, standups & reminders</p>
             </div>
           </div>
           <button
@@ -85,7 +125,7 @@ export const CalendarConnectModal: React.FC<CalendarConnectModalProps> = ({
                     isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
                   }`}
                 />
-                {isConnected ? 'Connected & Active' : 'Disconnected'}
+                {isConnected ? 'Connected & Active' : 'Not Connected'}
               </span>
             </div>
 

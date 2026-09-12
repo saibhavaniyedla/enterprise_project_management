@@ -48,7 +48,7 @@ export const AIInsightsModal: React.FC<AIInsightsModalProps> = ({
     }
   }, [isOpen, currentSprint?.id, currentProject?.id]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !currentSprint || !currentProject) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
@@ -64,7 +64,7 @@ export const AIInsightsModal: React.FC<AIInsightsModalProps> = ({
                 Gemini AI Sprint Risk Analyzer
               </h2>
               <p className="text-xs text-violet-200 font-medium">
-                {currentProject.name} — {currentSprint.name}
+                {currentProject?.name || 'Active Project'} — {currentSprint?.name || 'Active Sprint'}
               </p>
             </div>
           </div>

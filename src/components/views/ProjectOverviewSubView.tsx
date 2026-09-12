@@ -26,7 +26,7 @@ import { fetchProjectStats, fetchProjectActivity } from '../../lib/api';
 
 interface ProjectOverviewSubViewProps {
   projects: Project[];
-  currentProject: Project;
+  currentProject?: Project | null;
   onSelectProject: (p: Project) => void;
   tasks: Task[];
   members: TeamMember[];
@@ -45,24 +45,53 @@ export const ProjectOverviewSubView: React.FC<ProjectOverviewSubViewProps> = ({
   onOpenNewTask,
   onOpenAIInsights,
 }) => {
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(currentProject.id);
+  const fallbackProject: Project = useMemo(
+    () => ({
+      id: 'default-project',
+      workspaceId: 'default-workspace',
+      name: 'Active Project',
+      key: 'PRJ',
+      description: 'Project deliverables and sprint tracking.',
+      status: 'active' as const,
+      progress: 0,
+      created_at: new Date().toISOString(),
+    }),
+    []
+  );
+
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(
+    currentProject?.id || projects[0]?.id || ''
+  );
   const [stats, setStats] = useState<ProjectStatsOut | null>(null);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Sync selected project ID if currentProject changes from outside
   useEffect(() => {
-    setSelectedProjectId(currentProject.id);
-  }, [currentProject.id]);
+    if (currentProject?.id) {
+      setSelectedProjectId(currentProject.id);
+    } else if (projects.length > 0 && !selectedProjectId) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [currentProject?.id, projects, selectedProjectId]);
 
   const inspectedProject = useMemo(() => {
-    return projects.find((p) => p.id === selectedProjectId) || currentProject;
-  }, [projects, selectedProjectId, currentProject]);
+    return (
+      projects.find((p) => p.id === selectedProjectId) ||
+      currentProject ||
+      projects[0] ||
+      fallbackProject
+    );
+  }, [projects, selectedProjectId, currentProject, fallbackProject]);
 
   // Load stats & activities for selected project
   useEffect(() => {
     let isMounted = true;
     async function loadStats() {
+      if (!inspectedProject?.id || inspectedProject.id === 'default-project' || !inspectedProject.workspaceId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const [statsData, activityData] = await Promise.all([
@@ -86,12 +115,13 @@ export const ProjectOverviewSubView: React.FC<ProjectOverviewSubViewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [inspectedProject.id, inspectedProject.workspaceId, tasks]);
+  }, [inspectedProject?.id, inspectedProject?.workspaceId, tasks]);
 
   // Compute fallback display values from local tasks if needed
   const projectTasks = useMemo(() => {
+    if (!inspectedProject?.id) return [];
     return tasks.filter((t) => t.projectId === inspectedProject.id);
-  }, [tasks, inspectedProject.id]);
+  }, [tasks, inspectedProject?.id]);
 
   const totalCount = stats?.task_count ?? projectTasks.length;
   const completedCount =
@@ -104,7 +134,7 @@ export const ProjectOverviewSubView: React.FC<ProjectOverviewSubViewProps> = ({
 
   // Overall progress percentage
   const progressPercent =
-    totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : inspectedProject.progress || 0;
+    totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : inspectedProject?.progress || 0;
 
   // Health Score Color Helpers
   const getHealthScoreColor = (score: number) => {
@@ -204,11 +234,17 @@ export const ProjectOverviewSubView: React.FC<ProjectOverviewSubViewProps> = ({
                 }}
                 className="w-full sm:w-56 px-3.5 py-2 rounded-xl bg-slate-900 border border-indigo-500/40 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-lg appearance-none"
               >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id} className="bg-slate-900 text-white">
-                    {p.key} - {p.name}
+                {projects.length === 0 ? (
+                  <option value={inspectedProject.id} className="bg-slate-900 text-white">
+                    {inspectedProject.key} - {inspectedProject.name}
                   </option>
-                ))}
+                ) : (
+                  projects.map((p) => (
+                    <option key={p.id} value={p.id} className="bg-slate-900 text-white">
+                      {p.key} - {p.name}
+                    </option>
+                  ))
+                )}
               </select>
               <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
             </div>

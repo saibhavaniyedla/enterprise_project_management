@@ -19,7 +19,7 @@ import { Task, Sprint, TeamMember } from '../../types';
 
 interface AnalyticsViewProps {
   tasks: Task[];
-  sprint: Sprint;
+  sprint?: Sprint | null;
   members: TeamMember[];
   onOpenAIInsights: () => void;
 }

@@ -4,7 +4,7 @@ import { Task, Sprint, TeamMember } from '../../types';
 
 interface TimelineViewProps {
   tasks: Task[];
-  sprint: Sprint;
+  sprint?: Sprint | null;
   members: TeamMember[];
   onSelectTask: (task: Task) => void;
 }
@@ -15,17 +15,23 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   members,
   onSelectTask,
 }) => {
+  const effectiveStartDate = useMemo(() => {
+    if (sprint?.startDate) return sprint.startDate;
+    return new Date().toISOString().split('T')[0];
+  }, [sprint?.startDate]);
+
   // Generate date range headers for the sprint timeline (14 days)
   const dateColumns = useMemo(() => {
     const dates: string[] = [];
-    const start = new Date(sprint.startDate);
+    const start = new Date(effectiveStartDate);
+    const validStart = isNaN(start.getTime()) ? new Date() : start;
     for (let i = 0; i < 14; i++) {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
+      const d = new Date(validStart);
+      d.setDate(validStart.getDate() + i);
       dates.push(d.toISOString().split('T')[0]);
     }
     return dates;
-  }, [sprint.startDate]);
+  }, [effectiveStartDate]);
 
   const priorityColors = {
     Urgent: 'bg-rose-500 border-rose-600',
@@ -34,16 +40,26 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
     Low: 'bg-slate-400 border-slate-500',
   };
 
-  const calculateBarPosition = (startDate: string, dueDate: string) => {
-    const sprintStart = new Date(sprint.startDate).getTime();
-    const start = Math.max(new Date(startDate).getTime(), sprintStart);
-    const end = new Date(dueDate).getTime();
+  const calculateBarPosition = (startDate?: string, dueDate?: string) => {
+    const sprintStartDateObj = new Date(effectiveStartDate);
+    const sprintStart = isNaN(sprintStartDateObj.getTime())
+      ? Date.now()
+      : sprintStartDateObj.getTime();
+
+    const rawStart = startDate ? new Date(startDate).getTime() : sprintStart;
+    const validStart = isNaN(rawStart) ? sprintStart : rawStart;
+
+    const rawEnd = dueDate ? new Date(dueDate).getTime() : validStart + 86400000;
+    const validEnd = isNaN(rawEnd) ? validStart + 86400000 : rawEnd;
+
+    const start = Math.max(validStart, sprintStart);
+    const end = Math.max(validEnd, start);
     const dayMs = 86400000;
 
     const startDayIndex = Math.max(0, Math.floor((start - sprintStart) / dayMs));
     const durationDays = Math.max(1, Math.ceil((end - start) / dayMs) + 1);
 
-    const leftPct = (startDayIndex / 14) * 100;
+    const leftPct = Math.min(94, (startDayIndex / 14) * 100);
     const widthPct = Math.min(100 - leftPct, (durationDays / 14) * 100);
 
     return { left: `${leftPct}%`, width: `${Math.max(6, widthPct)}%` };

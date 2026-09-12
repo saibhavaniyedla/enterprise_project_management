@@ -31,11 +31,11 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   const [tagsInput, setTagsInput] = useState<string>('Feature, Cloud');
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
 
-  if (!isOpen) return null;
+  if (!isOpen || !currentProject) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || !currentProject) return;
 
     const tags = tagsInput
       .split(',')
@@ -50,7 +50,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
       storyPoints: Number(storyPoints) || 3,
       assigneeId,
       projectId: currentProject.id,
-      sprintId: currentSprint.id,
+      sprintId: currentSprint?.id || 'sprint-1',
       dueDate,
       tags: tags.length > 0 ? tags : ['Enterprise'],
       subtasks: [],
@@ -93,7 +93,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               placeholder="e.g., Configure RBAC IAM roles for production Kubernetes cluster"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
+              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
             />
           </div>
 
@@ -106,7 +106,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               placeholder="Provide technical specifications or acceptance criteria..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-normal"
             />
           </div>
 
@@ -118,7 +118,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as Priority)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-800"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-900"
               >
                 <option value="Urgent">Urgent</option>
                 <option value="High">High</option>
@@ -134,7 +134,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               <select
                 value={storyPoints}
                 onChange={(e) => setStoryPoints(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-800"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-900"
               >
                 <option value={1}>1 pt (Trivial)</option>
                 <option value={2}>2 pts (Small)</option>
@@ -152,7 +152,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-800"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-900"
               >
                 <option value="todo">To Do</option>
                 <option value="in-progress">In Progress</option>
@@ -170,7 +170,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               <select
                 value={assigneeId}
                 onChange={(e) => setAssigneeId(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-800"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-900"
               >
                 {members.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -188,9 +188,8 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-800"
-              >
-              </input>
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-900"
+              />
             </div>
           </div>
 
@@ -203,7 +202,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               value={tagsInput}
               onChange={(e) => setTagsInput(e.target.value)}
               placeholder="Feature, DevOps, Security..."
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
 

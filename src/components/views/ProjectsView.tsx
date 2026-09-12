@@ -26,10 +26,10 @@ import { TableView } from './TableView';
 
 interface ProjectsViewProps {
   projects: Project[];
-  currentProject: Project;
+  currentProject?: Project | null;
   onSelectProject: (p: Project) => void;
   sprints: Sprint[];
-  currentSprint: Sprint;
+  currentSprint?: Sprint | null;
   onSelectSprint: (s: Sprint) => void;
   tasks: Task[];
   members: TeamMember[];
@@ -72,6 +72,31 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<ProjectsMainSubTab>('overview');
   const [tasksSubView, setTasksSubView] = useState<TasksSubView>('board');
+
+  const fallbackProject: Project = {
+    id: 'default-project',
+    workspaceId: 'default-workspace',
+    name: 'Active Project',
+    key: 'PRJ',
+    description: 'Project deliverables and sprint tracking.',
+    status: 'active',
+    progress: 0,
+    created_at: new Date().toISOString(),
+  };
+
+  const activeProject = currentProject || projects[0] || fallbackProject;
+
+  const fallbackSprint: Sprint = {
+    id: 'default-sprint',
+    name: 'Sprint 1',
+    projectId: activeProject.id,
+    status: 'active',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+    goal: 'Sprint deliverables & milestones',
+  };
+
+  const activeSprint = currentSprint || sprints[0] || fallbackSprint;
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-[#090b10] text-slate-100">
@@ -208,7 +233,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
         {activeSubTab === 'overview' && (
           <ProjectOverviewSubView
             projects={projects}
-            currentProject={currentProject}
+            currentProject={activeProject}
             onSelectProject={onSelectProject}
             tasks={tasks}
             members={members}
@@ -222,18 +247,18 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
           <ProjectCalendarSubView
             tasks={tasks}
             members={members}
-            currentProject={currentProject}
+            currentProject={activeProject}
           />
         )}
 
         {activeSubTab === 'wiki' && (
-          <WikiView currentProject={currentProject} />
+          <WikiView currentProject={activeProject} />
         )}
 
         {activeSubTab === 'readme' && (
           <div className="p-4 lg:p-8 flex-1 overflow-y-auto">
             <ProjectReadmeSubView
-              project={currentProject}
+              project={activeProject}
               onSaveReadme={onSaveReadme || (async () => {})}
             />
           </div>
@@ -255,7 +280,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
             {tasksSubView === 'timeline' && (
               <TimelineView
                 tasks={tasks}
-                sprint={currentSprint}
+                sprint={activeSprint}
                 members={members}
                 onSelectTask={onSelectTask}
               />
@@ -265,7 +290,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               <ProjectCalendarSubView
                 tasks={tasks}
                 members={members}
-                currentProject={currentProject}
+                currentProject={activeProject}
               />
             )}
 
