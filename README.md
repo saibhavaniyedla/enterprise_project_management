@@ -1,4 +1,4 @@
-# 🚀 Enterprise Project Management SaaS 
+# 🚀 Enterprise Project Management SaaS  
 
 A modern, high-performance, full-stack project management platform that enables agile teams to collaborate in real time, plan sprints, manage backlogs, track project timelines, analyze sprint delivery risks with AI, and capture visual camera assets.
 
