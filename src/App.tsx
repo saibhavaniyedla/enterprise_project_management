@@ -45,6 +45,7 @@ import {
   subscribeMembers,
   subscribeTasks,
   subscribeActivities,
+  subscribeComments,
   subscribePresence,
   createTaskInDb,
   updateTaskInDb,
@@ -55,7 +56,6 @@ import {
   createProjectInDb,
   updateProjectInDb,
   sendPresenceHeartbeat,
-  seedWorkspaceWithDemoData,
 } from './lib/api';
 import {
   checkAndSendDeadlineAlerts,
@@ -65,7 +65,6 @@ import { checkAndAutoArchiveSprints } from './lib/sprintAutoArchive';
 import {
   onAuthStateChange,
   logoutUser,
-  UserScopedData,
 } from './lib/userAuthEngine';
 
 export function App() {
@@ -130,6 +129,11 @@ export function App() {
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [presetStatus, setPresetStatus] = useState<TaskStatus | undefined>();
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
+  const notify = useCallback((message: string) => {
+    setSyncNotice(message);
+    window.setTimeout(() => setSyncNotice(null), 4000);
+  }, []);
 
   // 1. Listen for Firebase Auth state changes
   useEffect(() => {
@@ -148,18 +152,8 @@ export function App() {
       return;
     }
 
-    const unsubWorkspaces = subscribeWorkspaces(currentUser.id, async (fetchedWorkspaces) => {
-      if (fetchedWorkspaces.length === 0) {
-        // Automatically seed first workspace if empty
-        const initialWs = await seedWorkspaceWithDemoData(
-          currentUser.id,
-          currentUser.name,
-          currentUser.email,
-          currentUser.avatar
-        );
-        setWorkspaces([initialWs]);
-        setCurrentWorkspace(initialWs);
-      } else {
+    const unsubWorkspaces = subscribeWorkspaces(currentUser.id, (fetchedWorkspaces) => {
+      {
         setWorkspaces(fetchedWorkspaces);
         setCurrentWorkspace((prev) => {
           if (!prev) return fetchedWorkspaces[0];
@@ -167,10 +161,10 @@ export function App() {
           return exists || fetchedWorkspaces[0];
         });
       }
-    });
+    }, () => notify('Workspace data is temporarily unavailable. Retrying automatically.'));
 
     return () => unsubWorkspaces();
-  }, [currentUser?.id]);
+  }, [currentUser?.id, notify]);
 
   // 3. Real-time Subscriptions: Projects, Members, Activities, Presence for currentWorkspace
   useEffect(() => {
@@ -193,17 +187,17 @@ export function App() {
         const exists = fetchedProjects.find((p) => p.id === prev.id);
         return exists || fetchedProjects[0] || null;
       });
-    });
+    }, () => notify('Projects could not sync. Retrying automatically.'));
 
     // Subscribe Members
     const unsubMembers = subscribeMembers(wsId, (fetchedMembers) => {
       setMembers(fetchedMembers);
-    });
+    }, () => notify('Team data could not sync. Retrying automatically.'));
 
     // Subscribe Activities
     const unsubActivities = subscribeActivities(wsId, (fetchedActivities) => {
       setActivities(fetchedActivities);
-    });
+    }, () => notify('Activity feed could not sync. Retrying automatically.'));
 
     // Subscribe Real-Time Presence
     const unsubPresence = subscribePresence(wsId, (activeUsers) => {
@@ -235,7 +229,7 @@ export function App() {
       unsubPresence();
       clearInterval(heartbeatTimer);
     };
-  }, [currentWorkspace?.id, currentUser?.id, effectiveUserName, effectiveUserAvatar]);
+  }, [currentWorkspace?.id, currentUser?.id, effectiveUserName, effectiveUserAvatar, notify]);
 
   // 4. Real-time Subscriptions: Tasks & Sprints for currentProject
   useEffect(() => {
@@ -256,7 +250,7 @@ export function App() {
         if (!prev) return null;
         return fetchedTasks.find((t) => t.id === prev.id) || null;
       });
-    });
+    }, () => notify('Tasks could not sync. Retrying automatically.'));
 
     const unsubSprints = subscribeSprints(wsId, projId, (fetchedSprints) => {
       setSprints(fetchedSprints);
@@ -265,13 +259,22 @@ export function App() {
         const exists = fetchedSprints.find((s) => s.id === prev.id);
         return exists || fetchedSprints[0] || null;
       });
-    });
+    }, () => notify('Sprints could not sync. Retrying automatically.'));
 
     return () => {
       unsubTasks();
       unsubSprints();
     };
-  }, [currentWorkspace?.id, currentProject?.id]);
+  }, [currentWorkspace?.id, currentProject?.id, notify]);
+
+  // Comments are a first-class real-time collection. Only the open task needs an
+  // active listener, and cleanup prevents duplicate listeners as task modals change.
+  useEffect(() => {
+    if (!currentWorkspace?.id || !currentProject?.id || !selectedTask?.id) return;
+    return subscribeComments(currentWorkspace.id, currentProject.id, selectedTask.id, (comments) => {
+      setSelectedTask((task) => task?.id === selectedTask.id ? { ...task, comments } : task);
+    }, () => notify('Comments could not sync. Retrying automatically.'));
+  }, [currentWorkspace?.id, currentProject?.id, selectedTask?.id, notify]);
 
   // Background Engine 1: Sprint Auto-Archiver (Runs every 30s)
   const runSprintAutoArchive = useCallback(() => {
@@ -302,7 +305,7 @@ export function App() {
   }, [runSprintAutoArchive, runDeadlineCheck]);
 
   // Login Success Handler
-  const handleLoginSuccess = (session: UserSession, userScopedData?: UserScopedData) => {
+  const handleLoginSuccess = (session: UserSession) => {
     setCurrentUser(session);
 
     // Lock navigation initially so user starts on Dashboard to pick workspace
@@ -310,19 +313,8 @@ export function App() {
     localStorage.setItem('fusionsprint_workspace_unlocked', 'false');
     setActiveTab('dashboard');
 
-    if (userScopedData) {
-      setWorkspaces(userScopedData.workspaces);
-      setCurrentWorkspace(userScopedData.workspaces[0] || null);
-
-      setProjects(userScopedData.projects);
-      setCurrentProject(userScopedData.projects[0] || null);
-
-      setSprints(userScopedData.sprints);
-      setCurrentSprint(userScopedData.sprints[0] || null);
-
-      setMembers(userScopedData.members);
-      setTasks(userScopedData.tasks);
-    }
+    // Snapshot listeners are the sole source of entity state. Do not hydrate from
+    // login-time data, which can be stale before another tab's changes arrive.
   };
 
   const handleLogout = async () => {
@@ -347,10 +339,12 @@ export function App() {
   // Dynamic Workspace Creation Handler (Persistent in Firestore)
   const handleCreateWorkspace = async (name: string, description: string) => {
     if (!currentUser?.id) return;
-    const newWs = await createWorkspaceInDb(name, description, currentUser.id);
-    setCurrentWorkspace(newWs);
-    setIsWorkspaceUnlocked(true);
-    localStorage.setItem('fusionsprint_workspace_unlocked', 'true');
+    try {
+      const newWs = await createWorkspaceInDb(name, description, currentUser.id);
+      setCurrentWorkspace(newWs);
+      setIsWorkspaceUnlocked(true);
+      localStorage.setItem('fusionsprint_workspace_unlocked', 'true');
+    } catch { notify('Workspace could not be created. Please try again.'); }
   };
 
   // Dynamic Project Creation Handler (Persistent in Firestore)
@@ -360,7 +354,7 @@ export function App() {
     description: string,
     workspaceId: string
   ) => {
-    const newProj = await createProjectInDb(workspaceId, {
+    try { const newProj = await createProjectInDb(workspaceId, {
       name,
       key,
       description,
@@ -369,13 +363,14 @@ export function App() {
     setCurrentProject(newProj);
     setIsWorkspaceUnlocked(true);
     localStorage.setItem('fusionsprint_workspace_unlocked', 'true');
+    } catch { notify('Project could not be created. Please try again.'); }
   };
 
   // Save Project README in Firestore
   const handleSaveReadme = async (newReadme: string) => {
     if (!currentWorkspace?.id || !currentProject?.id) return;
-    await updateProjectInDb(currentWorkspace.id, currentProject.id, { readme: newReadme });
-    setCurrentProject((prev) => (prev ? { ...prev, readme: newReadme } : null));
+    try { await updateProjectInDb(currentWorkspace.id, currentProject.id, { readme: newReadme }); }
+    catch { notify('README could not be saved. Your previous version is still intact.'); }
   };
 
   // Filter tasks based on selected project, sprint, and search query
@@ -401,7 +396,7 @@ export function App() {
   const handleCreateTask = async (taskData: Partial<Task>) => {
     if (!currentWorkspace?.id || !currentProject?.id) return;
     const targetSprintId = currentSprint?.id || `sprint-${Date.now()}`;
-    await createTaskInDb(
+    try { await createTaskInDb(
       currentWorkspace.id,
       currentProject.id,
       {
@@ -416,12 +411,13 @@ export function App() {
       }
     );
     setPresetStatus(undefined);
+    } catch { notify('Task could not be created. Please try again.'); }
   };
 
   const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
     if (!currentWorkspace?.id || !currentProject?.id) return;
     const oldTask = tasks.find((t) => t.id === taskId);
-    await updateTaskInDb(
+    try { await updateTaskInDb(
       currentWorkspace.id,
       currentProject.id,
       taskId,
@@ -432,7 +428,7 @@ export function App() {
         name: effectiveUserName,
         avatar: effectiveUserAvatar,
       }
-    );
+    ); } catch { notify('Task update could not be saved. The board will refresh safely.'); }
   };
 
   const handleDeleteTask = async (taskId: string) => {
@@ -441,7 +437,7 @@ export function App() {
     if (selectedTask?.id === taskId) {
       setSelectedTask(null);
     }
-    await deleteTaskInDb(
+    try { await deleteTaskInDb(
       currentWorkspace.id,
       currentProject.id,
       taskId,
@@ -451,12 +447,12 @@ export function App() {
         name: effectiveUserName,
         avatar: effectiveUserAvatar,
       }
-    );
+    ); } catch { notify('Task could not be deleted. It will reappear when sync completes.'); }
   };
 
   const handleAddComment = async (taskId: string, text: string) => {
     if (!currentWorkspace?.id || !currentProject?.id) return;
-    await addCommentInDb(
+    try { await addCommentInDb(
       currentWorkspace.id,
       currentProject.id,
       taskId,
@@ -466,7 +462,7 @@ export function App() {
         name: effectiveUserName,
         avatar: effectiveUserAvatar,
       }
-    );
+    ); } catch { notify('Comment could not be sent. Please try again.'); }
   };
 
   const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
@@ -528,6 +524,7 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#090b10] flex flex-row font-sans text-slate-100 antialiased selection:bg-indigo-500 selection:text-white overflow-hidden">
+      {syncNotice && <div className="fixed right-4 top-4 z-[100] rounded-lg bg-slate-800 px-4 py-3 text-sm text-white shadow-xl border border-slate-700">{syncNotice}</div>}
       {/* Navigation Sidebar */}
       <Sidebar
         activeTab={activeTab}

@@ -22,6 +22,7 @@ import {
   fetchGoogleCalendarEvents,
   createGoogleCalendarEvent,
   getCachedGoogleToken,
+  setCachedGoogleToken,
   GoogleCalendarEvent,
 } from '../../lib/googleCalendar';
 
@@ -261,7 +262,7 @@ export const ProjectCalendarSubView: React.FC<ProjectCalendarSubViewProps> = ({
     const dayStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
 
     // Tasks on this day
-    const dayTasks = tasks.filter((t) => t.dueDate === dayStr);
+    const dayTasks = tasks.filter((t) => (t.dueDate || '').slice(0, 10) === dayStr);
 
     // Google Calendar events on this day
     const dayGoogleEvents = googleEvents.filter((ev) => {
@@ -570,11 +571,11 @@ export const ProjectCalendarSubView: React.FC<ProjectCalendarSubViewProps> = ({
               <h4 className="text-xs font-bold uppercase tracking-wider text-rose-400">
                 Task Deadlines on this date
               </h4>
-              {tasks.filter((t) => t.dueDate === selectedDayEvents.dateStr).length === 0 ? (
+              {tasks.filter((t) => (t.dueDate || '').slice(0, 10) === selectedDayEvents.dateStr).length === 0 ? (
                 <p className="text-xs text-slate-500 italic">No tasks due on this date.</p>
               ) : (
                 tasks
-                  .filter((t) => t.dueDate === selectedDayEvents.dateStr)
+                  .filter((t) => (t.dueDate || '').slice(0, 10) === selectedDayEvents.dateStr)
                   .map((t) => (
                     <div
                       key={t.id}
